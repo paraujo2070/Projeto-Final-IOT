@@ -31,6 +31,7 @@ import com.example.app_proprietario.R
 import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.MoldStatus
 import com.example.app_proprietario.data.Room
+import com.example.app_proprietario.ui.theme.BorderStroke
 
 @Composable
 fun RoomCard(room: Room, onClick: () -> Unit) {
@@ -39,10 +40,8 @@ fun RoomCard(room: Room, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        ),
-        border = BorderStroke(1.dp, Color(0xFFE6E6E6)),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, BorderStroke),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

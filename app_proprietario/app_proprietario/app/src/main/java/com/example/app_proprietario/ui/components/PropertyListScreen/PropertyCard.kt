@@ -1,4 +1,4 @@
-package com.example.app_proprietario.ui.components.PropertyList
+package com.example.app_proprietario.ui.components.PropertyListScreen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app_proprietario.data.Property
+import com.example.app_proprietario.ui.theme.Background
+import com.example.app_proprietario.ui.theme.BorderStroke
 
 @Composable
 fun PropertyCard(
@@ -38,10 +40,8 @@ fun PropertyCard(
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(width = 1.dp, color = Color(0xFFE6E6E6)),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        ),
+        border = BorderStroke(width = 1.dp, color = BorderStroke),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -53,7 +53,7 @@ fun PropertyCard(
         ) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFF5F4ED),
+                color = Background,
                 modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {

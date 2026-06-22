@@ -1,30 +1,35 @@
 package com.example.app_proprietario.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.app_proprietario.data.Routes
-import com.example.app_proprietario.data.SampleData
 import com.example.app_proprietario.ui.screens.PropertyDetailsScreen
-import com.example.app_proprietario.ui.screens.PropertyListScreen
-import com.example.app_proprietario.ui.screens.RoomDetailsScreen
+import com.example.projetofinal_iot.ui.screens.PropertyListScreen
+import com.example.projetofinal_iot.ui.screens.RoomDetailsScreen
+import com.example.projetofinal_iot.ui.viewmodel.PropertyDetailsUiState
+import com.example.projetofinal_iot.ui.viewmodel.PropertyDetailsViewModel
+import com.example.projetofinal_iot.ui.viewmodel.PropertyListViewModel
+import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsViewModel
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun MonitorNavGraph() {
     val navController = rememberNavController()
-    val properties = remember { SampleData.properties }
 
     NavHost(
         navController = navController,
         startDestination = Routes.PROPERTY_LIST
     ) {
         composable(Routes.PROPERTY_LIST) {
+            val viewModel: PropertyListViewModel = koinViewModel()
+
             PropertyListScreen(
-                properties = properties,
+                viewModel = viewModel,
                 onPropertyClick = { property ->
                     navController.navigate(Routes.propertyDetails(property.id))
                 }
@@ -38,15 +43,15 @@ fun MonitorNavGraph() {
             )
         ) { backStackEntry ->
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
-            val property = properties.find { it.id == propertyId } ?: return@composable
+            val viewModel: PropertyDetailsViewModel = koinViewModel { parametersOf(propertyId) }
 
             PropertyDetailsScreen(
-                property = property,
-                onBack = {
-                    navController.popBackStack()
-                },
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
                 onRoomClick = { room ->
-                    navController.navigate(Routes.roomDetails(property.id, room.id))
+                    val propertyName = (viewModel.uiState.value as? PropertyDetailsUiState.Success)
+                        ?.property?.name ?: ""
+                    navController.navigate(Routes.roomDetails(propertyId, propertyName, room.id))
                 }
             )
         }
@@ -55,17 +60,20 @@ fun MonitorNavGraph() {
             route = Routes.ROOM_DETAILS,
             arguments = listOf(
                 navArgument("propertyId") { type = NavType.StringType },
+                navArgument("propertyName") { type = NavType.StringType },
                 navArgument("roomId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val rawPropertyName = backStackEntry.arguments?.getString("propertyName") ?: ""
+            val propertyName = Routes.decodePropertyName(rawPropertyName)
             val roomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
-            val property = properties.find { it.id == propertyId } ?: return@composable
-            val room = property.rooms.find { it.id == roomId } ?: return@composable
+            val viewModel: RoomDetailsViewModel = koinViewModel {
+                parametersOf(propertyId, propertyName, roomId)
+            }
 
             RoomDetailsScreen(
-                propertyName = property.name,
-                room = room,
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }

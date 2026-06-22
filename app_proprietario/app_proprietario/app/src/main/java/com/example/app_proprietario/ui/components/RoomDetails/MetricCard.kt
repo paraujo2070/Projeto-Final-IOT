@@ -12,10 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.app_proprietario.ui.theme.Background
 
 @Composable
 fun MetricCard(
@@ -28,9 +28,7 @@ fun MetricCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            Color(0xFFF5F4ED)
-        ),
+        colors = CardDefaults.cardColors(Background),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.app_proprietario.ui.theme.Background
 
 @Composable
 fun InfoChip(
@@ -27,7 +28,7 @@ fun InfoChip(
         color = if (highlighted)
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
         else
-            Color(0xFFF5F4ED)
+            Background
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),

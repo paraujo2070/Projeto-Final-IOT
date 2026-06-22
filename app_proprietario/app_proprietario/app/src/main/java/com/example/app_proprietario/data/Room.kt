@@ -6,7 +6,8 @@ data class Room(
     val humidity: Int,
     val temperature: Int,
     val intrusionStatus: IntrusionStatus,
-    val moldStatus: MoldStatus
+    val moldStatus: MoldStatus,
+    val lastSync: String = "sem dados"
 ) {
     val overallStatus: String
         get() = when {
@@ -25,4 +26,3 @@ data class Room(
     val hasAlert: Boolean
         get() = intrusionStatus == IntrusionStatus.INTRUSION_DETECTED || moldStatus == MoldStatus.RISK_DETECTED
 }
-

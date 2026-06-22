@@ -1,4 +1,4 @@
-package com.example.app_proprietario.ui.screens
+package com.example.projetofinal_iot.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,30 +11,61 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.app_proprietario.R
 import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.MoldStatus
 import com.example.app_proprietario.data.Room
-import com.example.app_proprietario.data.SampleData
-import com.example.app_proprietario.R
+import com.example.app_proprietario.ui.components.ErrorState
+import com.example.app_proprietario.ui.components.LoadingState
 import com.example.app_proprietario.ui.components.RoomDetails.MetricCard
 import com.example.app_proprietario.ui.components.RoomDetails.RoomDetailsTopBar
 import com.example.app_proprietario.ui.components.RoomDetails.RoomStatusBanner
 import com.example.app_proprietario.ui.components.RoomDetails.StatusItemCard
 import com.example.app_proprietario.ui.components.SyncFooter
+import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsUiState
+import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsViewModel
+
+@Composable
+fun RoomDetailsScreen(
+    viewModel: RoomDetailsViewModel,
+    onBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    when (val state = uiState) {
+        is RoomDetailsUiState.Loading -> LoadingState()
+        is RoomDetailsUiState.Error -> ErrorState(
+            message = state.message,
+            onRetry = { viewModel.loadRoom() }
+        )
+        is RoomDetailsUiState.Success -> RoomDetailsScreen(
+            propertyName = state.propertyName,
+            room = state.room,
+            isRefreshing = state.isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            onBack = onBack
+        )
+    }
+}
 
 @Composable
 fun RoomDetailsScreen(
     propertyName: String,
     room: Room,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
             RoomDetailsTopBar(
-                title = "$propertyName - ${room.name}",
+                title = room.name,
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
                 onBack = onBack
             )
         }
@@ -88,7 +119,7 @@ fun RoomDetailsScreen(
                     )
 
                     Text(
-                        text = "COMODOS",
+                        text = "DADOS DO COMODO",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -138,20 +169,8 @@ fun RoomDetailsScreen(
             }
 
             SyncFooter(
-                text = "Última sincronização há 4 min"
+                text = "Última sincronização ${room.lastSync}"
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun RoomDetailsScreenPreview() {
-    MaterialTheme {
-        RoomDetailsScreen(
-            propertyName = "Casa de Praia",
-            room = SampleData.properties.first().rooms.first(),
-            onBack = {}
-        )
     }
 }

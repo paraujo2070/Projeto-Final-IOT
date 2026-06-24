@@ -1,1 +1,0 @@
-"""TV box gateway package."""

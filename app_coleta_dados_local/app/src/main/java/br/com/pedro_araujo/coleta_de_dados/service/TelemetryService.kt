@@ -12,9 +12,10 @@ import androidx.lifecycle.lifecycleScope
 import br.com.pedro_araujo.coleta_de_dados.R
 import br.com.pedro_araujo.coleta_de_dados.data.local.TelemetryDao
 import br.com.pedro_araujo.coleta_de_dados.data.local.TelemetryEntity
+import br.com.pedro_araujo.coleta_de_dados.data.repository.DiagnosticRepository
 import br.com.pedro_araujo.coleta_de_dados.hardware.SenseHatController
 import br.com.pedro_araujo.coleta_de_dados.model.*
-import br.com.pedro_araujo.coleta_de_dados.network.MqttPublisher
+import br.com.pedro_araujo.coleta_de_dados.network.TelemetryPublisher
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
@@ -29,7 +30,8 @@ class TelemetryService : LifecycleService() {
 
     @Inject lateinit var senseHatController: SenseHatController
     @Inject lateinit var telemetryDao: TelemetryDao
-    @Inject lateinit var mqttPublisher: MqttPublisher
+    @Inject lateinit var telemetryPublisher: TelemetryPublisher
+    @Inject lateinit var diagnosticRepository: DiagnosticRepository
 
     private var job: Job? = null
     private val CHANNEL_ID = "TelemetryServiceChannel"
@@ -45,12 +47,34 @@ class TelemetryService : LifecycleService() {
         super.onCreate()
         Log.i(TAG, "🟢 TelemetryService criado")
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID, 
+                createNotification(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.i(TAG, "▶️ TelemetryService iniciado (onStartCommand)")
+        
+        // Reforça o startForeground no onStartCommand para evitar ANR/Crash no Android 14
+        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID, 
+                createNotification(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
+
         if (job == null) {
             job = lifecycleScope.launch {
                 telemetryLoop()
@@ -67,44 +91,80 @@ class TelemetryService : LifecycleService() {
 
     private suspend fun telemetryLoop() {
         Log.i(TAG, "🚀 Iniciando loop de telemetria (Janela: $WINDOW_SECONDS s)")
+        
+        val accelSamplesX = mutableListOf<Double>()
+        val accelSamplesY = mutableListOf<Double>()
+        val accelSamplesZ = mutableListOf<Double>()
+        val gyroSamplesX = mutableListOf<Double>()
+        val gyroSamplesY = mutableListOf<Double>()
+        val gyroSamplesZ = mutableListOf<Double>()
+        val pressureSamples = mutableListOf<Double>()
+        var latestClimate: ClimateData? = null
+        
+        var secondsCounter = 0
+
         while (currentCoroutineContext().isActive) {
-            val startTime = System.currentTimeMillis()
-            
-            val accelSamplesX = mutableListOf<Double>()
-            val accelSamplesY = mutableListOf<Double>()
-            val accelSamplesZ = mutableListOf<Double>()
-            val gyroSamplesX = mutableListOf<Double>()
-            val gyroSamplesY = mutableListOf<Double>()
-            val gyroSamplesZ = mutableListOf<Double>()
-            val pressureSamples = mutableListOf<Double>()
-            var latestClimate: ClimateData? = null
+            val climate = senseHatController.getClimateData()
+            val pressure = senseHatController.getPressureData()
+            val inertial = senseHatController.getInertialData()
 
-            // 10 second sampling window
-            for (i in 0 until WINDOW_SECONDS) {
-                val climate = senseHatController.getClimateData()
-                val pressure = senseHatController.getPressureData()
-                val inertial = senseHatController.getInertialData()
-
-                climate?.let { latestClimate = it }
-                pressure?.let { pressureSamples.add(it.barometerHpa) }
-                inertial?.let {
-                    accelSamplesX.add(it.accelX)
-                    accelSamplesY.add(it.accelY)
-                    accelSamplesZ.add(it.accelZ)
-                    gyroSamplesX.add(it.gyroX)
-                    gyroSamplesY.add(it.gyroY)
-                    gyroSamplesZ.add(it.gyroZ)
+            climate?.let { latestClimate = it }
+            pressure?.let { 
+                pressureSamples.add(it.barometerHpa)
+                if (pressureSamples.size > WINDOW_SECONDS) pressureSamples.removeAt(0)
+            }
+            inertial?.let {
+                accelSamplesX.add(it.accelX)
+                accelSamplesY.add(it.accelY)
+                accelSamplesZ.add(it.accelZ)
+                gyroSamplesX.add(it.gyroX)
+                gyroSamplesY.add(it.gyroY)
+                gyroSamplesZ.add(it.gyroZ)
+                
+                if (accelSamplesX.size > WINDOW_SECONDS) {
+                    accelSamplesX.removeAt(0)
+                    accelSamplesY.removeAt(0)
+                    accelSamplesZ.removeAt(0)
+                    gyroSamplesX.removeAt(0)
+                    gyroSamplesY.removeAt(0)
+                    gyroSamplesZ.removeAt(0)
                 }
-                delay(SAMPLING_DELAY_MS)
             }
 
-            val payload = buildPayload(
-                latestClimate,
-                pressureSamples,
-                accelSamplesX, accelSamplesY, accelSamplesZ,
-                gyroSamplesX, gyroSamplesY, gyroSamplesZ
-            )
-            saveAndPublish(payload)
+            // A cada 2 segundos, faz inferência e mofo
+            if (secondsCounter % 2 == 0) {
+                if (pressureSamples.isNotEmpty()) {
+                    val inputs = floatArrayOf(
+                        pressureSamples.average().toFloat(),
+                        calculateVariance(pressureSamples).toFloat(),
+                        calculateVariance(accelSamplesX).toFloat(),
+                        calculateVariance(accelSamplesY).toFloat(),
+                        calculateVariance(accelSamplesZ).toFloat(),
+                        calculateVariance(gyroSamplesX).toFloat(),
+                        calculateVariance(gyroSamplesY).toFloat(),
+                        calculateVariance(gyroSamplesZ).toFloat()
+                    )
+                    diagnosticRepository.updateInference(inputs)
+                }
+                
+                latestClimate?.let {
+                    diagnosticRepository.processMoldRisk(it.temperatureC, it.humidityPct)
+                }
+            }
+
+            // A cada 10 segundos, salva o payload normal no banco e publica
+            if (secondsCounter > 0 && secondsCounter % WINDOW_SECONDS == 0) {
+                val payload = buildPayload(
+                    latestClimate,
+                    pressureSamples.toList(),
+                    accelSamplesX.toList(), accelSamplesY.toList(), accelSamplesZ.toList(),
+                    gyroSamplesX.toList(), gyroSamplesY.toList(), gyroSamplesZ.toList()
+                )
+                saveAndPublish(payload)
+            }
+
+            secondsCounter++
+            delay(SAMPLING_DELAY_MS)
         }
     }
 
@@ -130,7 +190,10 @@ class TelemetryService : LifecycleService() {
         return TelemetryPayload(
             metadados = Metadata(deviceId, sdf.format(Date()), WINDOW_SECONDS),
             clima = Climate(climate?.temperatureC ?: 0.0, climate?.humidityPct ?: 0.0),
-            pressao = Pressure(pressureSamples.average().takeIf { !it.isNaN() } ?: 0.0, calculateVariance(pressureSamples)),
+            pressao = Pressure(
+                barometro_hpa_media = pressureSamples.average().takeIf { !it.isNaN() } ?: 0.0,
+                barometro_hpa_variancia = calculateVariance(pressureSamples)
+            ),
             inercial_vibracao = InertialVibration(
                 accel_x_variancia = calculateVariance(ax),
                 accel_y_variancia = calculateVariance(ay),
@@ -165,11 +228,11 @@ class TelemetryService : LifecycleService() {
         val topic = prefs.getString("mqtt_topic", "telemetry") ?: "telemetry"
         
         if (broker.isNotEmpty()) {
-            Log.d(TAG, "🌐 Tentando publicar via MQTT para: $broker")
-            if (mqttPublisher.connect(broker, "EdgeNode_${System.currentTimeMillis()}", null, null)) {
-                mqttPublisher.publishPendingData(topic)
+            Log.d(TAG, "🌐 Tentando publicar via HTTP para: $broker")
+            if (telemetryPublisher.connect(broker, "EdgeNode_${System.currentTimeMillis()}", null, null)) {
+                telemetryPublisher.publishPendingData(topic)
             } else {
-                Log.w(TAG, "⚠️ Falha na conexão MQTT. Dados permanecem no BD local.")
+                Log.w(TAG, "⚠️ Falha na conexão HTTP. Dados permanecem no BD local.")
             }
         } else {
             Log.i(TAG, "ℹ️ Broker não configurado. Dados apenas salvos localmente.")

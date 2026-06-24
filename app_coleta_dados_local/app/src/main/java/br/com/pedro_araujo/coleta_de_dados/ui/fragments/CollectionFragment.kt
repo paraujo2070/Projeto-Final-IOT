@@ -29,6 +29,11 @@ class CollectionFragment : Fragment(R.layout.fragment_collection) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // Solicitar permissão de notificação no Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+        }
+
         val btnStartStop = view.findViewById<Button>(R.id.btnStartStop)
         val tvStatus = view.findViewById<TextView>(R.id.tvConnectionStatus)
         val tvTotal = view.findViewById<TextView>(R.id.tvTotalCycles)
@@ -76,7 +81,6 @@ class CollectionFragment : Fragment(R.layout.fragment_collection) {
                     tvStatus.text = "Servidor: Não configurado"
                     tvStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
                 } else {
-                    // Aqui futuramente checaremos o status real do MqttPublisher
                     tvStatus.text = "Servidor: Pronto (Aguardando Broker)"
                     tvStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_dark))
                 }
@@ -97,7 +101,7 @@ class CollectionFragment : Fragment(R.layout.fragment_collection) {
 
     private fun startTelemetryService() {
         val intent = Intent(requireContext(), TelemetryService::class.java)
-        requireContext().startService(intent)
+        requireContext().startForegroundService(intent)
     }
 
     private fun stopTelemetryService() {

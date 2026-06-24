@@ -45,6 +45,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.activity.ktx)
+    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
@@ -62,6 +63,12 @@ dependencies {
     // MQTT
     implementation(libs.mqtt.paho)
 
+    // Retrofit
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.kotlinx.serialization.converter)
+    implementation(libs.retrofit.scalars.converter)
+    implementation(libs.okhttp)
+
     // Security
     implementation(libs.androidx.security.crypto)
 
@@ -75,6 +82,9 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // ONNX Runtime
+    implementation(libs.onnxruntime.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

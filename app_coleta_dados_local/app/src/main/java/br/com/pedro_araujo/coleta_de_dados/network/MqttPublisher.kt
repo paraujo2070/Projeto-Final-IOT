@@ -12,7 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class MqttPublisher @Inject constructor(
     private val telemetryDao: TelemetryDao
-) {
+) : TelemetryPublisher {
     companion object {
         private const val TAG = "MqttPublisher"
         private const val QOS = 1
@@ -20,7 +20,7 @@ class MqttPublisher @Inject constructor(
 
     private var mqttClient: MqttClient? = null
 
-    suspend fun connect(brokerUrl: String, clientId: String, userName: String?, password: String?): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun connect(brokerUrl: String, clientId: String, userName: String?, password: String?): Boolean = withContext(Dispatchers.IO) {
         try {
             if (mqttClient?.isConnected == true) return@withContext true
 
@@ -41,7 +41,7 @@ class MqttPublisher @Inject constructor(
         }
     }
 
-    suspend fun publishPendingData(topic: String) = withContext(Dispatchers.IO) {
+    override suspend fun publishPendingData(topic: String) = withContext(Dispatchers.IO) {
         if (mqttClient?.isConnected != true) {
             Log.w(TAG, "Cannot publish: MQTT not connected")
             return@withContext
@@ -65,7 +65,7 @@ class MqttPublisher @Inject constructor(
         }
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         try {
             mqttClient?.disconnect()
             mqttClient?.close()

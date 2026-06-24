@@ -94,17 +94,4 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Últimos Ciclos (Logcat Simulado)"
-        android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle2"
-        android:layout_marginBottom="8dp"/>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvCollectionCycles"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
-
 </LinearLayout>

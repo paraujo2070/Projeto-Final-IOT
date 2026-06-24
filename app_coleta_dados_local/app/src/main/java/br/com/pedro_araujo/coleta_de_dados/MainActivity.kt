@@ -30,8 +30,7 @@ class MainActivity : AppCompatActivity() {
             tab.text = when (position) {
                 0 -> "Coleta"
                 1 -> "Setup"
-                2 -> "Diagnóstico"
-                3 -> "Sensores"
+                2 -> "Sensores"
                 else -> null
             }
         }.attach()

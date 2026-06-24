@@ -7,7 +7,6 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import androidx.appcompat.widget.SwitchCompat
 import androidx.fragment.app.Fragment
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -49,7 +48,6 @@ class SetupFragment : Fragment(R.layout.fragment_setup) {
         val etMqttUser = view.findViewById<EditText>(R.id.etMqttUser)
         val etMqttPass = view.findViewById<EditText>(R.id.etMqttPass)
         val btnSave = view.findViewById<Button>(R.id.btnSave)
-        val swMode = view.findViewById<SwitchCompat>(R.id.swMode)
         val etLabel = view.findViewById<EditText>(R.id.etLabel)
 
         // Load
@@ -58,7 +56,6 @@ class SetupFragment : Fragment(R.layout.fragment_setup) {
         etBrokerUrl.setText(normalPrefs.getString("broker_url", "tcp://192.168.1.100:1883"))
         etMqttUser.setText(encryptedPrefs.getString("mqtt_user", ""))
         etMqttPass.setText(encryptedPrefs.getString("mqtt_pass", ""))
-        swMode.isChecked = normalPrefs.getBoolean("is_inference_mode", false)
         etLabel.setText(normalPrefs.getString("label_coleta", "ambiente_normal"))
 
         btnSave.setOnClickListener {
@@ -67,7 +64,6 @@ class SetupFragment : Fragment(R.layout.fragment_setup) {
                 putString("device_id", etDeviceId.text.toString())
                 putString("imovel_id", etImovelId.text.toString())
                 putString("broker_url", etBrokerUrl.text.toString())
-                putBoolean("is_inference_mode", swMode.isChecked)
                 putString("label_coleta", etLabel.text.toString())
                 apply()
             }

@@ -1,0 +1,87 @@
+GUIA DE INTEGRACAO DO MODELO DE DETECCAO DE INVASAO (ONNX)
+
+Este arquivo contem o codigo e as instrucoes para integrar o modelo modelo_invasao.onnx em sistemas Python.
+
+1. INSTALACAO DE DEPENDENCIAS:
+Execute o comando abaixo no seu terminal:
+pip install onnxruntime numpy
+
+2. CODIGO DE INTEGRACAO (PYTHON):
+
+import onnxruntime as ort
+import numpy as np
+
+class DetectorInvasao:
+    """
+    Classe para integracao do modelo de Machine Learning de Deteccao de Invasao.
+    O modelo classifica o estado do imovel entre 'Normal' (0) e 'Invasao' (1).
+    """
+
+    def __init__(self, caminho_modelo="modelo_invasao.onnx"):
+        """
+        Inicializa a sessao do ONNX Runtime.
+        :param caminho_modelo: String com a rota para o arquivo .onnx
+        """
+        try:
+            self.sessao = ort.InferenceSession(caminho_modelo)
+            self.input_name = self.sessao.get_inputs()[0].name
+            print(f"Modelo carregado com sucesso. Input esperado: {self.input_name}")
+        except Exception as e:
+            print(f"Erro ao carregar o modelo: {e}")
+
+    def predizer(self, lista_sensores):
+        """
+        Realiza a inferencia com base nos dados dos sensores.
+
+        :param lista_sensores: Lista contendo EXATAMENTE 8 valores float na ordem:
+            [0] Pressao Barometro (Media)
+            [1] Pressao Barometro (Variancia)
+            [2] Aceleracao X (Variancia)
+            [3] Aceleracao Y (Variancia)
+            [4] Aceleracao Z (Variancia)
+            [5] Giroscopio X (Variancia)
+            [6] Giroscopio Y (Variancia)
+            [7] Giroscopio Z (Variancia)
+
+        :return: Tupla (Classe_ID, Probabilidades)
+                 Classe_ID: 0 para 'Normal', 1 para 'Invasao'
+        """
+
+        # Converte a entrada para Float32 e Matrix 1x8 (requisito do ONNX)
+        input_array = np.array([lista_sensores], dtype=np.float32)
+
+        # Executa o modelo
+        # Saida [0]: Classe predita
+        # Saida [1]: Dicionario de probabilidades
+        outputs = self.sessao.run(None, {self.input_name: input_array})
+
+        classe_id = int(outputs[0][0])
+        probabilidades = outputs[1][0]
+
+        return classe_id, probabilidades
+
+# --- EXEMPLO DE USO ---
+if __name__ == "__main__":
+    # Inicializa o detector (certifique-se que o arquivo .onnx esta na mesma pasta)
+    detector = DetectorInvasao("modelo_invasao.onnx")
+
+    # Valores de exemplo (devem vir do processamento dos sensores em tempo real)
+    dados_sensores = [1013.2, 0.05, 0.012, 0.015, 0.010, 0.002, 0.003, 0.001]
+
+    # Realiza a predicao
+    classe, confianca = detector.predizer(dados_sensores)
+
+    if classe == 1:
+        print("ALERTA: Invasao detectada!")
+    else:
+        print("Status: Ambiente seguro.")
+
+    print(f"Probabilidades: {confianca}")
+
+
+3. INFORMACOES TECNICAS:
+
+- MAPEAMENTO: 0 = Normal / 1 = Invasao.
+- FORMATO DOS DADOS: O modelo espera VARIANCIA dos sensores inerciais, nao valores brutos.
+- TIPO DE DADO: O input DEVE ser float32. O codigo acima ja trata isso.
+- FREQUENCIA: Recomenda-se executar a cada 2 segundos para manter paridade com o treinamento.

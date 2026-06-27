@@ -1,288 +1,568 @@
 # TV Box Gateway
 
-Implementacao do gateway da TV box para o projeto de IoT.
+Esta pasta contem a implementacao da TV Box no projeto de monitoramento IoT de imoveis fechados.
 
-Este componente e responsavel por receber os dados gerados pelos dispositivos de borda, armazena-los localmente e encaminha-los para a nuvem via MQTT.
+A TV Box funciona como um gateway local: ela recebe os dados enviados pelos dispositivos de borda, executa o processamento local, aplica a inferencia de invasao, calcula indicadores auxiliares e publica na nuvem apenas os dados necessarios para visualizacao e tomada de decisao.
 
-## Objetivo
+## Papel da TV Box no Sistema
 
-A TV box funciona como intermediaria entre a borda e a nuvem.
+No sistema completo existem tres partes principais:
 
-O fluxo geral e:
+- App de borda: roda no dispositivo responsavel pela coleta dos sensores.
+- TV Box gateway: recebe os dados da borda, processa localmente e envia para a nuvem.
+- App do proprietario: consome os dados ja publicados na nuvem.
 
-1. o app Android executado no dispositivo de borda coleta os dados
-2. o app publica esses dados via MQTT para a TV box
-3. a TV box recebe as mensagens em um broker MQTT local
-4. o gateway salva as mensagens em uma outbox SQLite
-5. o gateway transforma o payload quando necessario
-6. o gateway reenvía os dados para a nuvem
+O papel da TV Box e ficar entre os dispositivos de borda e a plataforma em nuvem. Isso permite que a nuvem nao precise receber todos os dados brutos da coleta. Em vez disso, a TV Box envia um pacote mais limpo, com as informacoes finais que interessam ao app do proprietario e a apresentacao do projeto.
 
-Esse desenho permite desacoplar a coleta local da conectividade externa. Se a nuvem ficar indisponivel, a TV box continua recebendo os dados e tenta reenviá-los depois.
+## Fluxo de Dados
 
-## Papel da TV Box na Arquitetura
+O fluxo atual e:
 
-A TV box concentra duas responsabilidades:
+1. O app de borda coleta dados de clima, pressao e vibracao.
+2. O app de borda publica um JSON via MQTT para a TV Box.
+3. O broker Mosquitto local da TV Box recebe a mensagem no topico `telemetry`.
+4. O gateway Python escuta esse topico e salva a mensagem em uma outbox SQLite.
+5. O gateway executa o processamento local da mensagem.
+6. O modelo TFLite roda na TV Box para estimar a chance de invasao.
+7. O gateway monta o payload final no formato esperado pela Ubidots.
+8. A TV Box publica o resultado na nuvem via MQTT.
+9. O app do proprietario consome os dados da Ubidots.
 
-- atuar como broker MQTT local para os dispositivos de borda
-- atuar como servico de encaminhamento para a nuvem
+Esse desenho tambem ajuda na tolerancia a falhas. Se a nuvem estiver temporariamente indisponivel, a mensagem fica salva localmente na outbox e o gateway tenta reenviar depois.
 
-Na pratica, isso faz da TV box um gateway local.
+## Arquitetura Resumida
+
+```text
+Dispositivo de borda
+  App Android de coleta
+  Sensores / dados ambientais / movimento
+        |
+        | MQTT local
+        v
+TV Box
+  Mosquitto local
+  Gateway Python
+  SQLite outbox
+  Inferencia TFLite
+        |
+        | MQTT internet
+        v
+Ubidots
+  Device: teste_projeto_final
+  Variaveis finais do sistema
+        |
+        v
+App do proprietario
+  Dashboard / alertas / visualizacao
+```
 
 ## Estrutura da Pasta
 
 ```text
 tvbox_gateway/
-├── gateway/
-├── mosquitto/
-├── systemd/
-├── gateway.env.example
-├── requirements.txt
-└── README.md
++-- gateway/
+|   +-- __init__.py
+|   +-- cloud_forwarder.py
+|   +-- config.py
+|   +-- inference.py
+|   +-- local_subscriber.py
+|   +-- main.py
+|   +-- models.py
+|   +-- storage.py
++-- mosquitto/
+|   +-- mosquitto.conf
++-- systemd/
+|   +-- tvbox-gateway.service
++-- gateway.env.example
++-- requirements.txt
++-- README.md
 ```
 
-Arquivos e diretorios de runtime, como banco local, logs auxiliares e configuracoes sensiveis, nao fazem parte da versao do codigo e ficam fora do Git.
+Arquivos de runtime, credenciais, banco local e configuracoes reais de execucao nao devem ser versionados. O arquivo `gateway.env.example` serve apenas como modelo.
 
-### `gateway/`
+## Principais Componentes
 
-Contem a implementacao principal do servico Python.
+### `gateway/main.py`
 
-Arquivos:
+E o ponto de entrada do servico Python.
 
-- `main.py`
-  Orquestra o servico. Carrega a configuracao, inicializa os componentes e executa o ciclo principal do gateway.
+Ele carrega as configuracoes, inicializa o armazenamento local, inicia o assinante MQTT local e executa ciclos periodicos de envio para a nuvem.
 
-- `config.py`
-  Define a estrutura de configuracao do servico e faz a leitura das variaveis de ambiente.
+### `gateway/config.py`
 
-- `local_subscriber.py`
-  Responsavel por ouvir o broker local e registrar cada mensagem recebida na outbox do gateway.
+Centraliza a leitura das variaveis de ambiente.
 
-- `cloud_forwarder.py`
-  Responsavel por ler as mensagens pendentes, transformar o payload quando necessario e reenviá-las para a nuvem.
+E nele que ficam os parametros usados pelo gateway, como broker local, broker da nuvem, topicos MQTT, caminho do banco SQLite, caminhos do modelo de ML e thresholds de decisao.
 
-- `storage.py`
-  Implementa a outbox SQLite usada pelo gateway.
+### `gateway/local_subscriber.py`
 
-- `models.py`
-  Define estruturas auxiliares internas do servico.
+Responsavel por escutar o broker MQTT local.
 
-### `mosquitto/`
+Na implementacao atual, ele usa `mosquitto_sub` para assinar o topico `telemetry`. Quando uma mensagem chega, o modulo valida se o payload e JSON e salva a mensagem na outbox SQLite.
 
-Contem a configuracao do broker MQTT local executado na TV box.
+### `gateway/storage.py`
 
-Esse broker recebe as mensagens vindas dos dispositivos de borda.
+Implementa a outbox local usando SQLite.
 
-### `systemd/`
+A outbox guarda as mensagens recebidas antes do envio para a nuvem. Isso evita perda imediata de dados caso a internet ou a Ubidots estejam fora do ar.
 
-Contem a unidade `tvbox-gateway.service`, usada para executar o gateway como servico do sistema.
+Cada registro armazena:
 
-Isso permite:
+- topico de origem;
+- topico de destino na nuvem;
+- payload recebido;
+- QoS;
+- horario de recebimento;
+- quantidade de tentativas;
+- ultimo erro de envio.
 
-- iniciar automaticamente no boot
-- manter o processo em execucao
-- reiniciar automaticamente em caso de falha
+Quando o envio para a nuvem funciona, a mensagem e removida da outbox.
 
-## Funcionamento do Gateway
+### `gateway/inference.py`
 
-### 1. Recepcao local
+Responsavel pelo processamento local dos dados.
 
-O gateway escuta o broker MQTT local da TV box.
+Esse modulo:
 
-Na implementacao atual, ele assina o topico:
+- extrai temperatura e umidade do JSON recebido;
+- extrai as features usadas pelo modelo de invasao;
+- normaliza as features usando o scaler em JSON;
+- executa o modelo TFLite;
+- calcula `intrusao_detectada`;
+- calcula indicadores simples de risco de mofo;
+- retorna o resultado final para envio a Ubidots.
 
-`telemetry`
+### `gateway/cloud_forwarder.py`
 
-Esse valor foi mantido para compatibilidade com o app de borda existente.
+Responsavel por enviar dados para a nuvem.
 
-Quando uma mensagem chega:
+Ele le as mensagens pendentes da outbox, transforma o payload para o formato configurado e publica no broker MQTT da nuvem. No formato atual, `ubidots_inference`, ele nao envia todas as variaveis brutas. Ele envia apenas o resultado da inferencia e os dados finais que o app do proprietario deve consumir.
 
-- o topico e o payload sao capturados
-- o payload e validado como JSON
-- o destino cloud e calculado
-- a mensagem e armazenada na outbox local
+### `mosquitto/mosquitto.conf`
 
-### 2. Outbox local
+Configuracao do broker MQTT local da TV Box.
 
-Antes de qualquer envio para a nuvem, cada mensagem recebida e salva em um banco SQLite.
+Configuracao atual:
 
-Essa outbox guarda:
+```text
+listener 1883 0.0.0.0
+allow_anonymous true
+```
 
-- topico de origem
-- topico de destino na nuvem
-- payload original
-- QoS
-- horario de recebimento
-- contador de tentativas
-- ultima mensagem de erro
+Isso permite que os dispositivos na mesma rede publiquem mensagens MQTT na porta `1883` da TV Box.
 
-Essa camada existe para evitar perda de mensagens.
+### `systemd/tvbox-gateway.service`
 
-### 3. Encaminhamento para a nuvem
+Unidade usada para rodar o gateway como servico do sistema.
 
-O servico executa ciclos periodicos de flush da outbox.
+Na TV Box, isso permite:
 
-Em cada ciclo:
+- iniciar automaticamente no boot;
+- reiniciar em caso de falha;
+- acompanhar logs com `journalctl`;
+- controlar o gateway com `systemctl`.
 
-- ele le mensagens pendentes
-- transforma o payload se necessario
-- publica no broker cloud
-- remove da outbox se o envio foi bem-sucedido
+## Integracao com o App de Borda
 
-Se houver falha no envio:
+O app de borda deve publicar os dados via MQTT para a TV Box.
 
-- a mensagem permanece na outbox
-- o erro e registrado
-- a tentativa sera refeita em um ciclo posterior
+Configuracao esperada no app de borda:
 
-## Integracao MQTT Local
+```text
+Broker/IP: IP da TV Box
+Porta: 1883
+Topico: telemetry
+```
 
-O broker MQTT local e o ponto de entrada dos dados da borda.
+Exemplo de IP usado em testes:
 
-Na configuracao atual:
+```text
+192.168.1.48
+```
+
+O payload recebido pelo gateway precisa ser um JSON contendo, pelo menos, os blocos usados pelo processamento:
 
-- host local do broker: `127.0.0.1`
-- porta local: `1883`
-- topico de assinatura do gateway: `telemetry`
+```json
+{
+  "metadados": {
+    "device_id": "borda-01",
+    "timestamp": "2026-06-27T17:00:00Z",
+    "janela_amostragem_segundos": 10
+  },
+  "clima": {
+    "temperatura_c": 25.4,
+    "umidade_relativa_pct": 64.2
+  },
+  "pressao": {
+    "barometro_hpa_media": 1013.2,
+    "barometro_hpa_variancia": 0.01
+  },
+  "inercial_vibracao": {
+    "accel_x_variancia": 0.02,
+    "accel_y_variancia": 0.01,
+    "accel_z_variancia": 0.03,
+    "gyro_x_variancia": 0.01,
+    "gyro_y_variancia": 0.01,
+    "gyro_z_variancia": 0.02
+  },
+  "contexto": {
+    "status_sistema": "coletando",
+    "label_coleta": "quarto_aberto"
+  }
+}
+```
 
-Os dispositivos de borda publicam na TV box, e o gateway consome essas mensagens internamente.
+As oito features usadas pelo modelo de invasao sao:
 
-## Integracao com a Nuvem
+- `barometro_hpa_media`;
+- `barometro_hpa_variancia`;
+- `accel_x_variancia`;
+- `accel_y_variancia`;
+- `accel_z_variancia`;
+- `gyro_x_variancia`;
+- `gyro_y_variancia`;
+- `gyro_z_variancia`.
 
-O gateway suporta envio MQTT para a nuvem.
+Temperatura e umidade nao entram no modelo de invasao. Elas sao enviadas para a nuvem como dados brutos e tambem usadas no calculo simples de risco de mofo.
 
-Na configuracao atual do projeto, a nuvem utilizada e a Ubidots.
+## Inferencia de Invasao na TV Box
 
-Parametros usados:
+A inferencia de invasao roda localmente na TV Box usando um modelo TFLite.
 
-- host: `industrial.api.ubidots.com`
-- porta: `1883`
-- autenticacao: token no `username`
-- topico: `/v1.6/devices/teste_projeto_final`
+Arquivos esperados:
 
-## Formato do Payload na Nuvem
+```text
+Modelo_Machine_learn/modelo_dnn_invasao_tflite213.tflite
+Modelo_Machine_learn/scaler_telemetria_tflite213.json
+```
 
-O payload vindo do app de borda nao e reenviado de forma bruta.
+O modelo recebe as oito features de pressao e movimento, ja normalizadas pelo scaler. A saida do modelo e um valor entre `0` e `1`, publicado como `intrusao_confianca`.
 
-O gateway converte o JSON recebido para um formato mais apropriado ao consumo na nuvem.
+Essa saida nao deve ser interpretada como acuracia do modelo. Ela e o score/probabilidade retornado pelo modelo para a classe de invasao.
 
-As variaveis atualmente enviadas sao:
+A decisao binaria e feita pelo threshold configurado:
 
-- `temperatura_c`
-- `umidade_relativa_pct`
-- `barometro_hpa_media`
-- `barometro_hpa_variancia`
-- `accel_x_variancia`
-- `accel_y_variancia`
-- `accel_z_variancia`
-- `gyro_x_variancia`
-- `gyro_y_variancia`
-- `gyro_z_variancia`
+```text
+INTRUSION_DECISION_THRESHOLD=0.45
+```
 
-Cada variavel enviada para a nuvem contem:
+Regra atual:
 
-- `value`
-- `timestamp`
-- `context`
+```text
+intrusao_confianca >= 0.45 -> intrusao_detectada = 1
+intrusao_confianca < 0.45  -> intrusao_detectada = 0
+```
 
-O `context` inclui:
+Se o modelo TFLite ou o scaler nao estiverem disponiveis, o gateway possui uma heuristica de emergencia baseada nas variancias de movimento. Esse caminho serve apenas como fallback para manter o sistema funcionando, nao como comportamento principal.
 
-- `device_id`
-- `gateway_id`
-- `source_timestamp`
-- `status_sistema`
-- `label_coleta`
-- `janela_amostragem_segundos`
+## Risco de Mofo
 
-Isso permite que a nuvem identifique a origem dos dados mesmo quando varios dispositivos publicam para o mesmo gateway.
+O risco de mofo ainda nao usa ML. Ele e calculado por regra simples na TV Box a partir da umidade.
 
-## Arquivo de Configuracao
+Regra atual:
 
-O arquivo versionado de referencia e:
+```text
+umidade < 60% -> risco_mofo_codigo = 0 -> seguro
+60% a 70%    -> risco_mofo_codigo = 1 -> alerta
+umidade > 70% -> risco_mofo_codigo = 2 -> critico
+```
 
-- `gateway.env.example`
+Tambem e enviado o indicador `aceleracao_termica`.
 
-Ele descreve os parametros esperados pelo gateway.
+Regra atual:
 
-Os principais sao:
+```text
+20 C <= temperatura <= 30 C -> aceleracao_termica = 1
+caso contrario              -> aceleracao_termica = 0
+```
 
-- `GATEWAY_ID`
-- `LOCAL_BROKER_HOST`
-- `LOCAL_BROKER_PORT`
-- `LOCAL_TOPIC_FILTER`
-- `CLOUD_BROKER_HOST`
-- `CLOUD_BROKER_PORT`
-- `CLOUD_BROKER_USERNAME`
-- `CLOUD_TOPIC`
-- `CLOUD_PAYLOAD_FORMAT`
-- `SQLITE_PATH`
-- `FORWARD_INTERVAL_SECONDS`
-- `PUBLISH_QOS`
+A ideia e indicar se a temperatura esta em uma faixa que pode favorecer o crescimento de mofo quando combinada com umidade elevada.
 
-O arquivo real `gateway.env` e tratado como configuracao local de execucao e nao fica versionado.
+## Dados Enviados para a Ubidots
 
-## Execucao
+O gateway esta configurado para enviar o payload no formato:
 
-### Execucao manual
+```text
+CLOUD_PAYLOAD_FORMAT=ubidots_inference
+```
 
-Fluxo basico:
+Nesse formato, a Ubidots nao recebe todos os dados brutos. Ela recebe as variaveis finais abaixo.
 
-1. instalar as dependencias Python
-2. criar um `gateway.env` a partir de `gateway.env.example`
-3. garantir que o broker MQTT local esteja ativo
-4. executar:
+### `temperatura_c`
+
+Temperatura bruta recebida do app de borda.
+
+E enviada porque pode ser exibida diretamente no app do proprietario e tambem ajuda a interpretar risco ambiental.
+
+### `umidade_relativa_pct`
+
+Umidade bruta recebida do app de borda.
+
+E enviada porque e importante para monitoramento ambiental e para a avaliacao de risco de mofo.
+
+### `intrusao_detectada`
+
+Resultado final da decisao de invasao.
+
+Valores:
+
+```text
+0 -> invasao nao detectada
+1 -> invasao detectada
+```
+
+Essa e a variavel mais direta para alertas no app do proprietario.
+
+### `intrusao_confianca`
+
+Score retornado pelo modelo TFLite para invasao.
+
+Valores esperados:
+
+```text
+0.0 a 1.0
+```
+
+Quanto maior, mais o modelo esta inclinando para a classe de invasao. O threshold atual para transformar esse score em alerta e `0.45`.
+
+### `risco_mofo_codigo`
+
+Codigo numerico do risco de mofo.
+
+Valores:
+
+```text
+0 -> seguro
+1 -> alerta
+2 -> critico
+```
+
+Essa variavel e adequada para regras simples de interface, como mudar cor, exibir aviso ou gerar prioridade no app.
+
+### `aceleracao_termica`
+
+Indicador binario de faixa termica favoravel ao mofo.
+
+Valores:
+
+```text
+0 -> temperatura fora da faixa de aceleracao
+1 -> temperatura entre 20 C e 30 C
+```
+
+Essa variavel nao substitui o risco de mofo. Ela complementa a leitura da umidade.
+
+## Contexto Enviado com Cada Variavel
+
+Cada variavel enviada para a Ubidots segue o formato:
+
+```json
+{
+  "value": 25.4,
+  "timestamp": 1782589200000,
+  "context": {
+    "device_id": "borda-01",
+    "gateway_id": "tvbox-sala-01",
+    "source_timestamp": "2026-06-27T17:00:00Z",
+    "status_sistema": "coletando",
+    "label_coleta": "quarto_aberto",
+    "janela_amostragem_segundos": 10,
+    "intrusion_source": "tflite",
+    "mold_risk_label": "alerta"
+  }
+}
+```
+
+Campos principais do contexto:
+
+- `device_id`: identifica qual dispositivo de borda gerou a leitura.
+- `gateway_id`: identifica qual TV Box encaminhou a leitura.
+- `source_timestamp`: timestamp original enviado pela borda.
+- `status_sistema`: estado informado pelo app de borda.
+- `label_coleta`: rotulo informado pela borda, util para testes e analise.
+- `janela_amostragem_segundos`: tamanho da janela de coleta usada pela borda.
+- `intrusion_source`: indica se a inferencia veio de `tflite` ou de fallback `heuristic`.
+- `mold_risk_label`: versao textual do risco de mofo, como `seguro`, `alerta` ou `critico`.
+
+## Orientacao para o App do Proprietario
+
+O app do proprietario deve consumir os dados da Ubidots, nao diretamente da TV Box.
+
+Device usado no projeto:
+
+```text
+teste_projeto_final
+```
+
+Variaveis recomendadas para a interface:
+
+- `intrusao_detectada`: usar para alerta principal de invasao.
+- `intrusao_confianca`: usar como detalhe tecnico ou indicador de intensidade da suspeita.
+- `temperatura_c`: exibir como informacao ambiental.
+- `umidade_relativa_pct`: exibir como informacao ambiental.
+- `risco_mofo_codigo`: usar para status visual de risco de mofo.
+- `aceleracao_termica`: usar como indicador complementar do risco ambiental.
+
+Sugestao de interpretacao no app:
+
+```text
+intrusao_detectada = 1 -> mostrar alerta de possivel invasao
+intrusao_detectada = 0 -> mostrar estado normal
+
+risco_mofo_codigo = 0 -> ambiente seguro
+risco_mofo_codigo = 1 -> atencao para umidade
+risco_mofo_codigo = 2 -> risco critico de mofo
+```
+
+O app tambem pode usar o `context.device_id` para diferenciar leituras quando houver mais de um dispositivo de borda enviando dados para a mesma TV Box.
+
+## Configuracao do Gateway
+
+O arquivo de referencia e:
+
+```text
+gateway.env.example
+```
+
+O arquivo real usado na TV Box deve se chamar:
+
+```text
+gateway.env
+```
+
+Ele nao deve ser enviado ao Git, porque pode conter token da nuvem, usuario MQTT, senha e caminhos especificos da maquina.
+
+Variaveis principais:
+
+```text
+GATEWAY_ID=tvbox-sala-01
+
+LOCAL_BROKER_HOST=127.0.0.1
+LOCAL_BROKER_PORT=1883
+LOCAL_TOPIC_FILTER=telemetry
+
+CLOUD_BROKER_HOST=industrial.api.ubidots.com
+CLOUD_BROKER_PORT=1883
+CLOUD_BROKER_USERNAME=<token-da-ubidots>
+CLOUD_BROKER_PASSWORD=
+CLOUD_TOPIC=/v1.6/devices/teste_projeto_final
+CLOUD_PAYLOAD_FORMAT=ubidots_inference
+
+SQLITE_PATH=/var/lib/tvbox-gateway/outbox.db
+FORWARD_INTERVAL_SECONDS=5
+PUBLISH_QOS=1
+
+INFERENCE_MODEL_PATH=../Modelo_Machine_learn/modelo_dnn_invasao_tflite213.tflite
+INFERENCE_SCALER_PATH=../Modelo_Machine_learn/scaler_telemetria_tflite213.json
+INTRUSION_DECISION_THRESHOLD=0.45
+INTRUSION_VARIANCE_THRESHOLD=0.5
+```
+
+Observacao: na Ubidots usada neste projeto, o token e usado como `username` MQTT. A senha pode ficar vazia.
+
+## Dependencias
+
+Dependencia Python versionada:
+
+```text
+paho-mqtt==2.1.0
+```
+
+Na TV Box tambem sao necessarios:
+
+```text
+mosquitto
+mosquitto-clients
+python3
+tflite_runtime
+numpy
+libatlas3-base
+```
+
+O `libatlas3-base` fornece bibliotecas numericas usadas pelo `numpy` na arquitetura da TV Box.
+
+## Execucao Manual
+
+Na pasta `tvbox_gateway`, com o `gateway.env` configurado:
 
 ```bash
+set -a
+. gateway.env
+set +a
 python3 -m gateway.main
 ```
 
-### Execucao como servico
+Esse modo e util para testes rapidos e depuracao.
 
-Na TV box, o gateway foi preparado para ser executado com `systemd`.
+## Execucao como Servico
 
-Com isso, o servico pode:
+Na TV Box, o gateway roda como servico `systemd`.
 
-- subir junto com o sistema
-- ser monitorado pelo init
-- ser controlado com `systemctl`
+Comandos uteis:
 
-## Decisoes de Implementacao
+```bash
+sudo systemctl status tvbox-gateway --no-pager -l
+sudo systemctl restart tvbox-gateway
+sudo journalctl -u tvbox-gateway -f --no-pager
+```
 
-### Broker local separado do forwarder
+Para verificar se o modelo TFLite foi carregado corretamente, procure no log por:
 
-O broker local e o forwarder foram mantidos como componentes distintos.
+```text
+Loaded TFLite intrusion model
+```
 
-Isso deixa a arquitetura mais clara:
+Se aparecer `Falling back to heuristic intrusion detection`, significa que o modelo ou alguma dependencia nao foi carregada e o gateway entrou no modo de emergencia.
 
-- o broker recebe e distribui mensagens
-- o gateway interpreta e encaminha os dados
+## Como Testar
 
-### Outbox dupla no sistema completo
+### 1. Testar se a TV Box recebe dados localmente
 
-O sistema completo tem duas camadas de persistencia:
+Na TV Box:
 
-- uma outbox no app de borda
-- uma outbox no gateway da TV box
+```bash
+mosquitto_sub -h 127.0.0.1 -t telemetry -v
+```
 
-Isso aumenta a tolerancia a falhas em mais de um ponto do fluxo.
+No app de borda, iniciar a coleta.
 
-### Compatibilidade com o app de borda atual
+Resultado esperado: aparecer uma linha com o topico `telemetry` seguido do JSON enviado pelo app.
 
-O gateway foi adaptado ao formato ja existente no app de borda.
+Se nada aparecer, o problema provavelmente esta entre o app de borda, a rede local e o broker MQTT da TV Box.
 
-Isso inclui:
+### 2. Testar o gateway em tempo real
 
-- escuta no topico `telemetry`
-- leitura de `device_id` a partir do JSON do payload
+Na TV Box:
 
-Essa escolha permitiu validar o fluxo real sem exigir refatoracao imediata do app Android.
+```bash
+sudo journalctl -u tvbox-gateway -f --no-pager
+```
 
-## Resumo
+Ao iniciar a coleta no app de borda, o esperado e ver mensagens indicando que o gateway armazenou e encaminhou o dado.
 
-Esta pasta implementa a parte do gateway do projeto.
+Exemplo esperado:
 
-Ela transforma a TV box em um ponto de agregacao local para multiplos dispositivos de borda, com capacidade de:
+```text
+Stored inbound message id=...
+Forwarded message id=... to cloud topic=/v1.6/devices/teste_projeto_final
+```
 
-- receber dados via MQTT
-- persistir localmente
-- encaminhar para a nuvem
-- continuar operando mesmo diante de falhas temporarias de conectividade
+### 3. Testar na Ubidots
+
+Na Ubidots, abrir o device:
+
+```text
+teste_projeto_final
+```
+
+Verificar se as variaveis abaixo foram atualizadas:
+
+```text
+temperatura_c
+umidade_relativa_pct
+intrusao_detectada
+intrusao_confianca
+risco_mofo_codigo
+aceleracao_termica
+```
+

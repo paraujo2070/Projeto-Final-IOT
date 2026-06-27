@@ -1,0 +1,100 @@
+import numpy as np
+import joblib
+import tflite_runtime.interpreter as tflite
+from typing import List, Tuple
+
+class DetectorInvasaoIoT:
+    def __init__(self, caminho_modelo: str, caminho_scaler: str, limiar_seguranca: float = 0.45):
+        """
+        Inicializa os artefatos de Machine Learning na memória RAM do Gateway ARM32.
+        Esta operação deve ocorrer apenas uma vez durante o boot do serviço.
+        """
+        self.limiar = limiar_seguranca
+        
+        try:
+            self.scaler = joblib.load(caminho_scaler)
+            
+            # Inicializa o interpretador leve do TFLite
+            self.interpreter = tflite.Interpreter(model_path=caminho_modelo)
+            self.interpreter.allocate_tensors()
+            
+            # Mapeamento dos ponteiros de memória para injeção e extração de dados
+            self.input_details = self.interpreter.get_input_details()
+            self.output_details = self.interpreter.get_output_details()
+            
+        except Exception as e:
+            raise RuntimeError(f"Falha crítica ao carregar artefatos de IA: {e}")
+
+    def analisar_telemetria(self, leituras_sensores: List[float]) -> Tuple[bool, float]:
+        """
+        Processa um vetor de leituras brutas e retorna o estado de invasão.
+        
+        Ordem estrita esperada no vetor 'leituras_sensores' (8 posições):
+        1. pressao.barometro_hpa_media
+        2. pressao.barometro_hpa_variancia
+        3. inercial_vibracao.accel_x_variancia
+        4. inercial_vibracao.accel_y_variancia
+        5. inercial_vibracao.accel_z_variancia
+        6. inercial_vibracao.gyro_x_variancia
+        7. inercial_vibracao.gyro_y_variancia
+        8. inercial_vibracao.gyro_z_variancia
+        """
+        if len(leituras_sensores) != 8:
+            raise ValueError("O vetor de telemetria deve conter exatamente 8 features.")
+
+        # 1. Adequação da dimensionalidade e aplicação do Z-score (Scaler)
+        dados_brutos = np.array([leituras_sensores])
+        dados_normalizados = self.scaler.transform(dados_brutos).astype(np.float32)
+
+        # 2. Injeção dos dados no tensor de entrada
+        self.interpreter.set_tensor(self.input_details[0]['index'], dados_normalizados)
+
+        # 3. Execução do Forward Pass (Inferência da Rede Neural)
+        self.interpreter.invoke()
+
+        # 4. Extração da probabilidade contínua gerada pela função Sigmoid
+        probabilidade = self.interpreter.get_tensor(self.output_details[0]['index'])[0][0]
+
+        # 5. Aplicação da Regra de Negócio
+        houve_invasao = bool(probabilidade > self.limiar)
+
+        return houve_invasao, float(probabilidade)
+
+
+# ==============================================================================
+# Exemplo de Integração para o Desenvolvedor do Gateway
+# ==============================================================================
+if __name__ == "__main__":
+    
+    # 1. Configuração Inicial (Executada no boot do dispositivo)
+    print("[SYSTEM] Inicializando Módulo de Inteligência Artificial...")
+    detector = DetectorInvasaoIoT(
+        caminho_modelo="modelo_dnn_invasao.tflite",
+        caminho_scaler="scaler_telemetria.pkl",
+        limiar_seguranca=0.45
+    )
+    print("[SYSTEM] Módulo IA Pronto para Inferência.")
+
+    # 2. Simulação de um laço de repetição de leitura de sensores (Tempo Real)
+    # Exemplo: Dados capturados da porta I2C/SPI do gateway
+    leitura_atual = [1013.25, 0.005, 0.021, 0.015, 0.018, 0.008, 0.007, 0.009]
+
+    # 3. Invocação estrita e limpa da lógica preditiva
+    alarme_acionado, confianca = detector.analisar_telemetria(leitura_atual)
+
+    if alarme_acionado:
+        print(f"[ALERTA CRÍTICO] Invasão Detectada! Confiança: {confianca:.2%}")
+        # Chamar rotina de envio MQTT/HTTP para o servidor central
+    else:
+        print(f"[INFO] Estado Normal. Confiança de Anomalia: {confianca:.2%}")
+
+
+
+
+
+
+Dependências do Ambiente: Ele deve instalar estritamente os pacotes leves no sistema operacional do gateway ARM32 executando:
+pip install tflite-runtime joblib numpy scikit-learn
+(Nota: O scikit-learn é necessário no ambiente final apenas para que o joblib consiga desserializar a estrutura interna da classe StandardScaler que foi salva).
+
+Ciclo de Vida da Instância: Reforce com ele que a classe DetectorInvasaoIoT deve ser instanciada fora de qualquer laço de repetição (como o while True de leitura contínua dos sensores). O método analisar_telemetria é o único que deve ser chamado repetidamente, garantindo latência próxima a zero na placa.

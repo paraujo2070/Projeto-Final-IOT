@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from paho.mqtt import publish
 
 from .config import Settings
+from .inference import InferenceEngine
 from .storage import OutboxStorage
 
 
@@ -17,6 +18,7 @@ class CloudForwarder:
     def __init__(self, settings: Settings, storage: OutboxStorage) -> None:
         self.settings = settings
         self.storage = storage
+        self.inference = InferenceEngine(settings)
 
     def disconnect(self) -> None:
         return None
@@ -45,7 +47,7 @@ class CloudForwarder:
         return sent_count
 
     def publish_status(self) -> None:
-        if self.settings.cloud_payload_format == "ubidots":
+        if self.settings.cloud_payload_format in {"ubidots", "ubidots_inference"}:
             return
 
         payload = json.dumps(
@@ -69,6 +71,9 @@ class CloudForwarder:
             LOGGER.error("Failed to publish gateway status: %s", exc)
 
     def _decorate_payload(self, payload_text: str) -> str:
+        if self.settings.cloud_payload_format == "ubidots_inference":
+            return self._to_ubidots_inference_payload(payload_text)
+
         if self.settings.cloud_payload_format == "ubidots":
             return self._to_ubidots_payload(payload_text)
 
@@ -111,6 +116,27 @@ class CloudForwarder:
         }
         return json.dumps(payload, ensure_ascii=False)
 
+    def _to_ubidots_inference_payload(self, payload_text: str) -> str:
+        data = json.loads(payload_text)
+        metadata = data.get("metadados", {}) if isinstance(data.get("metadados"), dict) else {}
+        context_info = data.get("contexto", {}) if isinstance(data.get("contexto"), dict) else {}
+
+        timestamp_ms = self._parse_timestamp_ms(metadata.get("timestamp"))
+        result = self.inference.infer(payload_text)
+        common_context = self._build_common_context(metadata, context_info)
+        common_context["intrusion_source"] = result.intrusion_source
+        common_context["mold_risk_label"] = result.mold_risk_label
+
+        payload = {
+            "temperatura_c": self._ubidots_var(result.temperature_c, timestamp_ms, common_context),
+            "umidade_relativa_pct": self._ubidots_var(result.humidity_pct, timestamp_ms, common_context),
+            "intrusao_detectada": self._ubidots_var(result.intrusion_detected, timestamp_ms, common_context),
+            "intrusao_confianca": self._ubidots_var(result.intrusion_confidence, timestamp_ms, common_context),
+            "risco_mofo_codigo": self._ubidots_var(result.mold_risk_code, timestamp_ms, common_context),
+            "aceleracao_termica": self._ubidots_var(result.thermal_acceleration, timestamp_ms, common_context),
+        }
+        return json.dumps(payload, ensure_ascii=False)
+
     def _ubidots_var(self, value, timestamp_ms: int, context: dict) -> dict:
         numeric_value = self._safe_number(value)
         return {
@@ -140,4 +166,14 @@ class CloudForwarder:
         return {
             "username": self.settings.cloud_broker_username,
             "password": self.settings.cloud_broker_password or "",
+        }
+
+    def _build_common_context(self, metadata: dict, context_info: dict) -> dict:
+        return {
+            "device_id": metadata.get("device_id", "unknown-device"),
+            "gateway_id": self.settings.gateway_id,
+            "source_timestamp": metadata.get("timestamp"),
+            "status_sistema": context_info.get("status_sistema"),
+            "label_coleta": context_info.get("label_coleta"),
+            "janela_amostragem_segundos": metadata.get("janela_amostragem_segundos"),
         }

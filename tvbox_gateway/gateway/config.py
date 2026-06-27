@@ -47,6 +47,10 @@ class Settings:
     publish_qos: int
     status_topic: str
     log_level: str
+    inference_model_path: str | None
+    inference_scaler_path: str | None
+    intrusion_decision_threshold: float
+    intrusion_variance_threshold: float
 
 
 def load_settings() -> Settings:
@@ -72,4 +76,8 @@ def load_settings() -> Settings:
         publish_qos=_env_int("PUBLISH_QOS", 1),
         status_topic=_env("STATUS_TOPIC", f"gateway/{gateway_id}/status") or f"gateway/{gateway_id}/status",
         log_level=_env("LOG_LEVEL", "INFO") or "INFO",
+        inference_model_path=_env("INFERENCE_MODEL_PATH"),
+        inference_scaler_path=_env("INFERENCE_SCALER_PATH"),
+        intrusion_decision_threshold=_env_float("INTRUSION_DECISION_THRESHOLD", 0.45),
+        intrusion_variance_threshold=_env_float("INTRUSION_VARIANCE_THRESHOLD", 0.5),
     )

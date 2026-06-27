@@ -41,5 +41,18 @@ data class UbidotsVariableDto(
 @Serializable
 data class UbidotsLastValueDto(
     val value: Double? = null,
-    val timestamp: Long? = null
+    val timestamp: Long? = null,
+    val context: UbidotsContextDto? = null
+)
+
+@Serializable
+data class UbidotsContextDto(
+    @SerialName("gateway_id") val gatewayId: String? = null,
+    @SerialName("label_coleta") val labelColeta: String? = null,
+    @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("intrusion_source") val intrusionSource: String? = null,
+    @SerialName("mold_risk_label") val moldRiskLabel: String? = null,
+    @SerialName("status_sistema") val statusSistema: String? = null,
+    @SerialName("source_timestamp") val sourceTimestamp: String? = null,
+    @SerialName("janela_amostragem_segundos") val sampleWindowSeconds: Int? = null
 )

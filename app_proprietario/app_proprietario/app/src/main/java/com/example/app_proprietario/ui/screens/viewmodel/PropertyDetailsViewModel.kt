@@ -1,4 +1,4 @@
-package com.example.projetofinal_iot.ui.viewmodel
+package com.example.app_proprietario.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

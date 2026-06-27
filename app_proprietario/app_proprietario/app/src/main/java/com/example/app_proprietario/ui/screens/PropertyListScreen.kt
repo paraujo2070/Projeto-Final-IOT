@@ -1,4 +1,4 @@
-package com.example.projetofinal_iot.ui.screens
+package com.example.app_proprietario.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,8 +14,8 @@ import com.example.app_proprietario.ui.components.ErrorState
 import com.example.app_proprietario.ui.components.LoadingState
 import com.example.app_proprietario.ui.components.PropertyListScreen.PropertyCard
 import com.example.app_proprietario.ui.components.PropertyListScreen.PropertyListTopBar
-import com.example.projetofinal_iot.ui.viewmodel.PropertyListUiState
-import com.example.projetofinal_iot.ui.viewmodel.PropertyListViewModel
+import com.example.app_proprietario.ui.viewmodel.PropertyListUiState
+import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
 
 @Composable
 fun PropertyListScreen(

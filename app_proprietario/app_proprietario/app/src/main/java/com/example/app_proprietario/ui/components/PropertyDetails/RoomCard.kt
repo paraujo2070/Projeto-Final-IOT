@@ -1,6 +1,6 @@
 package com.example.app_proprietario.ui.components.PropertyDetails
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.BorderStroke as ComposeBorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,101 +11,137 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.app_proprietario.R
-import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.MoldStatus
 import com.example.app_proprietario.data.Room
 import com.example.app_proprietario.ui.theme.BorderStroke
+import com.example.app_proprietario.ui.theme.MoldColor
+import com.example.app_proprietario.ui.theme.MoldColorSoft
+import com.example.app_proprietario.ui.theme.Surface
+import com.example.app_proprietario.ui.theme.TextMuted
+import com.example.app_proprietario.ui.theme.TextPrimary
+import com.example.app_proprietario.ui.theme.TextSecondary
+
+private const val HIGH_HUMIDITY_THRESHOLD = 70
+private const val HIGH_TEMPERATURE_THRESHOLD = 30
 
 @Composable
 fun RoomCard(room: Room, onClick: () -> Unit) {
+    val hasMoldRisk = room.moldStatus == MoldStatus.RISK_DETECTED
+    val isHumidityHigh = room.humidity > HIGH_HUMIDITY_THRESHOLD
+    val isTemperatureHigh = room.temperature > HIGH_TEMPERATURE_THRESHOLD
+
+    val cardBackground = if (hasMoldRisk) MoldColorSoft else Surface
+    val titleColor = if (hasMoldRisk) MoldColor else TextPrimary
+    val chevronColor = if (hasMoldRisk) MoldColor else TextMuted
+    val dividerColor = if (hasMoldRisk) MoldColor else BorderStroke
+    val labelColor = if (hasMoldRisk) MoldColor else TextSecondary
+    val mutedIconColor = if (hasMoldRisk) MoldColor else TextMuted
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, BorderStroke),
+        colors = CardDefaults.cardColors(containerColor = cardBackground),
+        border = ComposeBorderStroke(0.5.dp, if (hasMoldRisk) MoldColor else BorderStroke),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Text(
                     text = room.name,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = titleColor,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(start = 8.dp),
+                    tint = chevronColor
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
+                color = dividerColor
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                InfoChip(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Shield, null, Modifier.size(16.dp)) },
-                    text = if (room.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED)
-                        "Invasão" else "Sem invasão",
-                    highlighted = room.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED
-                )
-                InfoChip(
-                    modifier = Modifier.weight(1f),
+                MetricRow(
                     icon = {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_humidity),
-                            null,
-                            modifier = Modifier.size(16.dp)
+                            imageVector = if (hasMoldRisk) Icons.Filled.Warning else Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = mutedIconColor
                         )
                     },
-                    text = if (room.moldStatus == MoldStatus.RISK_DETECTED)
-                        "Risco de Mofo" else "Sem mofo"
+                    label = "Status",
+                    labelColor = labelColor,
+                    value = if (hasMoldRisk) "Risco de mofo" else "Sem mofo",
+                    valueColor = if (hasMoldRisk) MoldColor else TextSecondary,
+                    valueWeight = if (hasMoldRisk) FontWeight.Bold else FontWeight.Medium
                 )
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                InfoChip(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.WaterDrop, null, Modifier.size(16.dp)) },
-                    text = "${room.humidity}% Umidade"
+                MetricRow(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.WaterDrop,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = mutedIconColor
+                        )
+                    },
+                    label = "Umidade",
+                    labelColor = labelColor,
+                    value = "${room.humidity}%",
+                    valueColor = if (hasMoldRisk) MoldColor else if (isHumidityHigh) MoldColor else TextPrimary,
+                    valueWeight = FontWeight.Normal
                 )
-                InfoChip(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Thermostat, null, Modifier.size(16.dp)) },
-                    text = "${room.temperature}° C"
+
+                MetricRow(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Thermostat,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = mutedIconColor
+                        )
+                    },
+                    label = "Temperatura",
+                    labelColor = labelColor,
+                    value = "${room.temperature}°C",
+                    valueColor = if (hasMoldRisk) MoldColor else if (isTemperatureHigh) MoldColor else TextPrimary,
+                    valueWeight = FontWeight.Normal
                 )
             }
         }

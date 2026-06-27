@@ -11,18 +11,8 @@ object UbidotsConfig {
 object UbidotsVariables {
     const val HUMIDITY = "umidade_relativa_pct"
     const val TEMPERATURE = "temperatura_c"
-    const val BAROMETER_MEAN = "barometro_hpa_media"
-    const val BAROMETER_VARIANCE = "barometro_hpa_variancia"
-    const val ACCEL_X_VARIANCE = "accel_x_variancia"
-    const val ACCEL_Y_VARIANCE = "accel_y_variancia"
-    const val ACCEL_Z_VARIANCE = "accel_z_variancia"
-    const val GYRO_X_VARIANCE = "gyro_x_variancia"
-    const val GYRO_Y_VARIANCE = "gyro_y_variancia"
-    const val GYRO_Z_VARIANCE = "gyro_z_variancia"
-
-    val MOTION_VARIANCE_VARIABLES = listOf(
-        ACCEL_X_VARIANCE, ACCEL_Y_VARIANCE, ACCEL_Z_VARIANCE,
-        GYRO_X_VARIANCE, GYRO_Y_VARIANCE, GYRO_Z_VARIANCE
-    )
+    const val INTRUSION_DETECTED = "intrusao_detectada"
+    const val INTRUSION_CONFIDENCE = "intrusao_confianca"
+    const val MOLD_RISK_CODE = "risco_mofo_codigo"
+    const val THERMAL_ACCELERATION = "aceleracao_termica"
 }
-

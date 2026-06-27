@@ -8,12 +8,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.app_proprietario.data.Routes
 import com.example.app_proprietario.ui.screens.PropertyDetailsScreen
-import com.example.projetofinal_iot.ui.screens.PropertyListScreen
-import com.example.projetofinal_iot.ui.screens.RoomDetailsScreen
-import com.example.projetofinal_iot.ui.viewmodel.PropertyDetailsUiState
-import com.example.projetofinal_iot.ui.viewmodel.PropertyDetailsViewModel
-import com.example.projetofinal_iot.ui.viewmodel.PropertyListViewModel
-import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsViewModel
+import com.example.app_proprietario.ui.screens.PropertyListScreen
+import com.example.app_proprietario.ui.screens.RoomDetailsScreen
+import com.example.app_proprietario.ui.viewmodel.PropertyDetailsUiState
+import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
+import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
+import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -42,7 +42,8 @@ fun MonitorNavGraph() {
                 navArgument("propertyId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val rawPropertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val propertyId = Routes.decode(rawPropertyId)
             val viewModel: PropertyDetailsViewModel = koinViewModel { parametersOf(propertyId) }
 
             PropertyDetailsScreen(
@@ -64,10 +65,12 @@ fun MonitorNavGraph() {
                 navArgument("roomId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val rawPropertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val propertyId = Routes.decode(rawPropertyId)
             val rawPropertyName = backStackEntry.arguments?.getString("propertyName") ?: ""
-            val propertyName = Routes.decodePropertyName(rawPropertyName)
-            val roomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
+            val propertyName = Routes.decode(rawPropertyName)
+            val rawRoomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
+            val roomId = Routes.decode(rawRoomId)
             val viewModel: RoomDetailsViewModel = koinViewModel {
                 parametersOf(propertyId, propertyName, roomId)
             }

@@ -12,7 +12,6 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,11 +20,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.Property
+import com.example.app_proprietario.ui.theme.IntrusionColor
+import com.example.app_proprietario.ui.theme.TextPrimary
+import com.example.app_proprietario.ui.theme.TextSecondary
 
 @Composable
 fun PropertyStatusBanner(property: Property) {
-    val hasAlert = property.roomsWithAlert.isNotEmpty()
+    val intrusionDetected = property.rooms.any { it.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -43,10 +46,7 @@ fun PropertyStatusBanner(property: Property) {
             Icon(
                 imageVector = Icons.Outlined.Shield,
                 contentDescription = null,
-                tint = if (hasAlert)
-                    MaterialTheme.colorScheme.error
-                else
-                    MaterialTheme.colorScheme.onSurface,
+                tint = if (intrusionDetected) IntrusionColor else TextPrimary,
                 modifier = Modifier.size(24.dp)
             )
 
@@ -54,15 +54,19 @@ fun PropertyStatusBanner(property: Property) {
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 Text(
-                    text = property.statusSummary,
+                    text = if (intrusionDetected) "Invasão detectada" else "Sem invasão",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = if (intrusionDetected) IntrusionColor else TextPrimary
                 )
 
                 Text(
-                    text = property.statusSummaryDescription,
+                    text = if (intrusionDetected)
+                        "Ocorreu movimento incomum neste imóvel"
+                    else
+                        "Nenhum movimento incomum detectado neste imóvel",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = TextSecondary
                 )
             }
         }

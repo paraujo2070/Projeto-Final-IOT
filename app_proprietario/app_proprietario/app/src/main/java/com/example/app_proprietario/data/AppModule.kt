@@ -6,9 +6,9 @@ import com.example.app_proprietario.domain.RoomRepository
 import com.example.app_proprietario.domain.usecase.GetAllPropertiesUseCase
 import com.example.app_proprietario.domain.usecase.GetPropertyDetailsUseCase
 import com.example.app_proprietario.domain.usecase.GetRoomDetailsUseCase
-import com.example.projetofinal_iot.ui.viewmodel.PropertyDetailsViewModel
-import com.example.projetofinal_iot.ui.viewmodel.PropertyListViewModel
-import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsViewModel
+import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
+import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
+import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 

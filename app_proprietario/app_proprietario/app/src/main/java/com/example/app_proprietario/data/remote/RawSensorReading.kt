@@ -3,15 +3,13 @@ package com.example.app_proprietario.data.remote
 data class RawSensorReading(
     val humidityPct: Float,
     val temperatureC: Float,
-    val barometerMeanHpa: Float,
-    val barometerVarianceHpa: Float,
-    val accelXVariance: Float,
-    val accelYVariance: Float,
-    val accelZVariance: Float,
-    val gyroXVariance: Float,
-    val gyroYVariance: Float,
-    val gyroZVariance: Float,
-    val lastActivityMs: Long?
+    val intrusionDetectedRaw: Float,
+    val intrusionConfidence: Float,
+    val moldRiskCodeRaw: Float,
+    val thermalAcceleration: Float,
+    val lastActivityMs: Long?,
+    val gatewayId: String?,
+    val propertyLabel: String?
 ) {
     companion object {
         fun fromVariables(variables: List<UbidotsVariableDto>): RawSensorReading {
@@ -19,19 +17,18 @@ data class RawSensorReading(
                 variables.find { it.label == label }?.lastValue?.value?.toFloat() ?: 0f
 
             val lastActivity = variables.mapNotNull { it.lastActivity }.maxOrNull()
+            val context = variables.firstNotNullOfOrNull { it.lastValue?.context }
 
             return RawSensorReading(
                 humidityPct = valueOf(UbidotsVariables.HUMIDITY),
                 temperatureC = valueOf(UbidotsVariables.TEMPERATURE),
-                barometerMeanHpa = valueOf(UbidotsVariables.BAROMETER_MEAN),
-                barometerVarianceHpa = valueOf(UbidotsVariables.BAROMETER_VARIANCE),
-                accelXVariance = valueOf(UbidotsVariables.ACCEL_X_VARIANCE),
-                accelYVariance = valueOf(UbidotsVariables.ACCEL_Y_VARIANCE),
-                accelZVariance = valueOf(UbidotsVariables.ACCEL_Z_VARIANCE),
-                gyroXVariance = valueOf(UbidotsVariables.GYRO_X_VARIANCE),
-                gyroYVariance = valueOf(UbidotsVariables.GYRO_Y_VARIANCE),
-                gyroZVariance = valueOf(UbidotsVariables.GYRO_Z_VARIANCE),
-                lastActivityMs = lastActivity
+                intrusionDetectedRaw = valueOf(UbidotsVariables.INTRUSION_DETECTED),
+                intrusionConfidence = valueOf(UbidotsVariables.INTRUSION_CONFIDENCE),
+                moldRiskCodeRaw = valueOf(UbidotsVariables.MOLD_RISK_CODE),
+                thermalAcceleration = valueOf(UbidotsVariables.THERMAL_ACCELERATION),
+                lastActivityMs = lastActivity,
+                gatewayId = context?.gatewayId,
+                propertyLabel = context?.labelColeta
             )
         }
     }

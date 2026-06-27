@@ -2,6 +2,7 @@ package com.example.app_proprietario.data.repository
 
 import com.example.app_proprietario.data.Property
 import com.example.app_proprietario.data.Room
+import com.example.app_proprietario.data.RoomWithPropertyInfo
 import com.example.app_proprietario.data.SampleData
 import com.example.app_proprietario.data.mapper.RoomMapper
 import com.example.app_proprietario.data.remote.RawSensorReading
@@ -19,56 +20,62 @@ class RoomRepositoryImpl(
     private val token: String = UbidotsConfig.AUTH_TOKEN
 ) : RoomRepository {
 
+    companion object {
+        const val UNASSIGNED_PROPERTY_ID = "sem-imovel"
+        const val UNASSIGNED_PROPERTY_NAME = "Comodos sem imovel"
+    }
+
     override suspend fun getAllProperties(): Result<List<Property>> = runCatching {
-        val livePropertyResult = getProperty(UbidotsPropertyConfig.PROPERTY_ID)
-        listOf(SampleData.mockedProperty, livePropertyResult.getOrThrow())
+        listOf(SampleData.mockedProperty) + fetchLiveProperties()
     }
 
     override suspend fun getProperty(propertyId: String): Result<Property> = runCatching {
-        when (propertyId) {
-            SampleData.mockedProperty.id -> SampleData.mockedProperty
-            UbidotsPropertyConfig.PROPERTY_ID -> fetchLiveProperty()
-            else -> error("Imovel $propertyId não encontrado")
+        if (propertyId == SampleData.mockedProperty.id) {
+            return@runCatching SampleData.mockedProperty
         }
+        fetchLiveProperties().find { it.id == propertyId }
+            ?: error("Imovel $propertyId não encontrado")
     }
 
     override suspend fun getRoom(propertyId: String, roomId: String): Result<Room> = runCatching {
-        when (propertyId) {
-            SampleData.mockedProperty.id ->
-                SampleData.mockedProperty.rooms.find { it.id == roomId }
-                    ?: error("Comodo $roomId não encontrado no imovel mockado")
-
-            UbidotsPropertyConfig.PROPERTY_ID -> {
-                val devices = api.getDevices(token).results
-                    .filterNot { it.label in UbidotsPropertyConfig.IGNORED_DEVICE_LABELS }
-                val device = devices.find { it.label == roomId }
-                    ?: error("Device $roomId não encontrado na Ubidots")
-                fetchRoom(device)
-            }
-
-            else -> error("Imovel $propertyId não encontrado")
+        if (propertyId == SampleData.mockedProperty.id) {
+            return@runCatching SampleData.mockedProperty.rooms.find { it.id == roomId }
+                ?: error("Comodo $roomId não encontrado no imovel mockado")
         }
+
+        val devices = api.getDevices(token).results
+            .filterNot { it.label in UbidotsPropertyConfig.IGNORED_DEVICE_LABELS }
+        val device = devices.find { it.label == roomId }
+            ?: error("Device $roomId não encontrado na Ubidots")
+        fetchRoomWithPropertyInfo(device).room
     }
 
-    private suspend fun fetchLiveProperty(): Property = coroutineScope {
+    private suspend fun fetchLiveProperties(): List<Property> = coroutineScope {
         val devices = api.getDevices(token).results
             .filterNot { it.label in UbidotsPropertyConfig.IGNORED_DEVICE_LABELS }
 
-        val rooms = devices
-            .map { device -> async { fetchRoom(device) } }
+        val roomsWithInfo = devices
+            .map { device -> async { fetchRoomWithPropertyInfo(device) } }
             .awaitAll()
 
-        Property(
-            id = UbidotsPropertyConfig.PROPERTY_ID,
-            name = UbidotsPropertyConfig.PROPERTY_NAME,
-            rooms = rooms,
-            lastSync = RoomMapper.formatNow()
-        )
+        roomsWithInfo
+            .groupBy { it.gatewayId ?: UNASSIGNED_PROPERTY_ID }
+            .map { (gatewayId, roomsInGateway) ->
+                val propertyName = roomsInGateway.firstNotNullOfOrNull { it.propertyName }
+                    ?: if (gatewayId == UNASSIGNED_PROPERTY_ID) UNASSIGNED_PROPERTY_NAME else gatewayId
+
+                Property(
+                    id = gatewayId,
+                    name = propertyName,
+                    rooms = roomsInGateway.map { it.room },
+                    lastSync = RoomMapper.formatNow()
+                )
+            }
     }
 
-    private suspend fun fetchRoom(device: UbidotsDeviceDto): Room {
+    private suspend fun fetchRoomWithPropertyInfo(device: UbidotsDeviceDto): RoomWithPropertyInfo {
         val variables = api.getDeviceVariables(token, device.id).results
         val reading = RawSensorReading.fromVariables(variables)
-        return RoomMapper.toRoom(device, reading)
+        return RoomMapper.toRoomWithPropertyInfo(device, reading)
     }
 }

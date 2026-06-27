@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.app_proprietario.data.Property
 import com.example.app_proprietario.ui.theme.Background
 import com.example.app_proprietario.ui.theme.BorderStroke
+import com.example.app_proprietario.ui.theme.MoldColorSoft
 
 @Composable
 fun PropertyCard(

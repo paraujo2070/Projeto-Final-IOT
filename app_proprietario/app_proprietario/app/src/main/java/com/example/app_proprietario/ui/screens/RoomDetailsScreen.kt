@@ -1,10 +1,9 @@
-package com.example.projetofinal_iot.ui.screens
+package com.example.app_proprietario.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -16,7 +15,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.example.app_proprietario.R
-import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.MoldStatus
 import com.example.app_proprietario.data.Room
 import com.example.app_proprietario.ui.components.ErrorState
@@ -24,10 +22,16 @@ import com.example.app_proprietario.ui.components.LoadingState
 import com.example.app_proprietario.ui.components.RoomDetails.MetricCard
 import com.example.app_proprietario.ui.components.RoomDetails.RoomDetailsTopBar
 import com.example.app_proprietario.ui.components.RoomDetails.RoomStatusBanner
-import com.example.app_proprietario.ui.components.RoomDetails.StatusItemCard
 import com.example.app_proprietario.ui.components.SyncFooter
-import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsUiState
-import com.example.projetofinal_iot.ui.viewmodel.RoomDetailsViewModel
+import com.example.app_proprietario.ui.theme.MoldColor
+import com.example.app_proprietario.ui.theme.TextSecondary
+import com.example.app_proprietario.ui.viewmodel.RoomDetailsUiState
+import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
+
+private const val HIGH_HUMIDITY_THRESHOLD = 70
+private const val LOW_HUMIDITY_THRESHOLD = 30
+private const val HIGH_TEMPERATURE_THRESHOLD = 30
+private const val LOW_TEMPERATURE_THRESHOLD = 18
 
 @Composable
 fun RoomDetailsScreen(
@@ -60,6 +64,10 @@ fun RoomDetailsScreen(
     onRefresh: () -> Unit = {},
     onBack: () -> Unit
 ) {
+    val hasMoldRisk = room.moldStatus == MoldStatus.RISK_DETECTED
+    val isHumidityAlert = hasMoldRisk || room.humidity > HIGH_HUMIDITY_THRESHOLD
+    val isTemperatureAlert = hasMoldRisk || room.temperature > HIGH_TEMPERATURE_THRESHOLD
+
     Scaffold(
         topBar = {
             RoomDetailsTopBar(
@@ -90,39 +98,11 @@ fun RoomDetailsScreen(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatusItemCard(
-                        icon = { Icon(Icons.Outlined.Shield, null, Modifier.size(22.dp)) },
-                        title = if (room.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED)
-                            "Invasão detectada!" else "Sem invasão",
-                        description = if (room.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED)
-                            "Movimento incomum detectado"
-                        else
-                            "Nenhum movimento incomum detectado",
-                        isAlert = room.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED
-                    )
-
-                    StatusItemCard(
-                        icon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_humidity),
-                                null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        title = if (room.moldStatus == MoldStatus.RISK_DETECTED)
-                            "Risco de mofo!" else "Sem risco de mofo",
-                        description = if (room.moldStatus == MoldStatus.RISK_DETECTED)
-                            "Umidade e temperatura fora da faixa segura"
-                        else
-                            "Umidade e temperatura dentro da faixa segura",
-                        isAlert = room.moldStatus == MoldStatus.RISK_DETECTED
-                    )
-
                     Text(
                         text = "DADOS DO COMODO",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        color = TextSecondary,
                         modifier = Modifier.padding(top = 8.dp)
                     )
 
@@ -135,34 +115,39 @@ fun RoomDetailsScreen(
                             icon = {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_humidity),
-                                    null,
-                                    modifier = Modifier.size(18.dp)
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (isHumidityAlert) MoldColor else TextSecondary,
                                 )
                             },
                             title = "Umidade",
                             value = "${room.humidity}%",
                             description = when {
-                                room.humidity > 70 -> "Umidade alta"
-                                room.humidity < 30 -> "Umidade baixa"
+                                room.humidity > HIGH_HUMIDITY_THRESHOLD -> "Umidade alta"
+                                room.humidity < LOW_HUMIDITY_THRESHOLD -> "Umidade baixa"
                                 else -> "Umidade normal"
-                            }
+                            },
+                            isAlert = isHumidityAlert
                         )
 
                         MetricCard(
                             modifier = Modifier.weight(1f),
                             icon = {
                                 Icon(
-                                    Icons.Outlined.Thermostat,
-                                    null, Modifier.size(16.dp)
+                                    imageVector = Icons.Outlined.Thermostat,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isTemperatureAlert) MoldColor else TextSecondary,
                                 )
                             },
                             title = "Temperatura",
                             value = "${room.temperature}° C",
                             description = when {
-                                room.temperature > 30 -> "Temperatura alta"
-                                room.temperature < 18 -> "Temperatura baixa"
+                                room.temperature > HIGH_TEMPERATURE_THRESHOLD -> "Temperatura alta"
+                                room.temperature < LOW_TEMPERATURE_THRESHOLD -> "Temperatura baixa"
                                 else -> "Temperatura normal"
-                            }
+                            },
+                            isAlert = isTemperatureAlert
                         )
                     }
                 }

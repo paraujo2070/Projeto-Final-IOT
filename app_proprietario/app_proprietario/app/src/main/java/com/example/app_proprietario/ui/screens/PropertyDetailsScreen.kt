@@ -26,7 +26,8 @@ import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
 fun PropertyDetailsScreen(
     viewModel: PropertyDetailsViewModel,
     onBack: () -> Unit,
-    onRoomClick: (Room) -> Unit
+    onRoomClick: (Room) -> Unit,
+    onIntrusionHistoryClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -41,7 +42,8 @@ fun PropertyDetailsScreen(
             isRefreshing = state.isRefreshing,
             onRefresh = { viewModel.refresh() },
             onBack = onBack,
-            onRoomClick = onRoomClick
+            onRoomClick = onRoomClick,
+            onIntrusionHistoryClick = onIntrusionHistoryClick
         )
     }
 }
@@ -52,7 +54,8 @@ fun PropertyDetailsScreen(
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     onBack: () -> Unit,
-    onRoomClick: (Room) -> Unit
+    onRoomClick: (Room) -> Unit,
+    onIntrusionHistoryClick: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -77,7 +80,10 @@ fun PropertyDetailsScreen(
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 item {
-                    PropertyStatusBanner(property = property)
+                    PropertyStatusBanner(
+                        property = property,
+                        onClick = onIntrusionHistoryClick
+                    )
                 }
 
                 item {

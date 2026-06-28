@@ -7,9 +7,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.app_proprietario.data.Routes
+import com.example.app_proprietario.ui.screens.IntrusionHistoryScreen
 import com.example.app_proprietario.ui.screens.PropertyDetailsScreen
 import com.example.app_proprietario.ui.screens.PropertyListScreen
 import com.example.app_proprietario.ui.screens.RoomDetailsScreen
+import com.example.app_proprietario.ui.screens.viewmodel.IntrusionHistoryViewModel
 import com.example.app_proprietario.ui.viewmodel.PropertyDetailsUiState
 import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
 import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
@@ -53,6 +55,9 @@ fun MonitorNavGraph() {
                     val propertyName = (viewModel.uiState.value as? PropertyDetailsUiState.Success)
                         ?.property?.name ?: ""
                     navController.navigate(Routes.roomDetails(propertyId, propertyName, room.id))
+                },
+                onIntrusionHistoryClick = {
+                    navController.navigate(Routes.intrusionHistory(propertyId))
                 }
             )
         }
@@ -76,6 +81,22 @@ fun MonitorNavGraph() {
             }
 
             RoomDetailsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Routes.INTRUSION_HISTORY,
+            arguments = listOf(
+                navArgument("propertyId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val rawPropertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
+            val propertyId = Routes.decode(rawPropertyId)
+            val viewModel: IntrusionHistoryViewModel = koinViewModel { parametersOf(propertyId) }
+
+            IntrusionHistoryScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )

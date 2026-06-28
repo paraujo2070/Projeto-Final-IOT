@@ -1,19 +1,23 @@
 package com.example.app_proprietario.data.repository
 
+import com.example.app_proprietario.data.IntrusionEvent
 import com.example.app_proprietario.data.Property
 import com.example.app_proprietario.data.Room
 import com.example.app_proprietario.data.RoomWithPropertyInfo
 import com.example.app_proprietario.data.SampleData
+import com.example.app_proprietario.data.mapper.IntrusionHistoryMapper
 import com.example.app_proprietario.data.mapper.RoomMapper
 import com.example.app_proprietario.data.remote.RawSensorReading
 import com.example.app_proprietario.data.remote.UbidotsApi
 import com.example.app_proprietario.data.remote.UbidotsConfig
 import com.example.app_proprietario.data.remote.UbidotsDeviceDto
 import com.example.app_proprietario.data.remote.UbidotsPropertyConfig
+import com.example.app_proprietario.data.remote.UbidotsVariables
 import com.example.app_proprietario.domain.RoomRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import java.util.concurrent.TimeUnit
 
 class RoomRepositoryImpl(
     private val api: UbidotsApi,
@@ -50,6 +54,31 @@ class RoomRepositoryImpl(
         fetchRoomWithPropertyInfo(device).room
     }
 
+    override suspend fun getIntrusionHistory(propertyId: String, hoursBack: Int): Result<List<IntrusionEvent>> =
+        runCatching {
+            if (propertyId == SampleData.mockedProperty.id) {
+                return@runCatching emptyList()
+            }
+
+            val property = fetchLiveProperties().find { it.id == propertyId }
+                ?: error("Imovel $propertyId não encontrado")
+
+            val devices = api.getDevices(token).results
+                .filterNot { it.label in UbidotsPropertyConfig.IGNORED_DEVICE_LABELS }
+                .filter { device -> property.rooms.any { it.id == device.label } }
+
+            val endMs = System.currentTimeMillis()
+            val startMs = endMs - TimeUnit.HOURS.toMillis(hoursBack.toLong())
+
+            coroutineScope {
+                devices
+                    .map { device -> async { fetchRoomIntrusionEvents(device, startMs, endMs) } }
+                    .awaitAll()
+                    .flatten()
+                    .sortedByDescending { it.startMs }
+            }
+        }
+
     private suspend fun fetchLiveProperties(): List<Property> = coroutineScope {
         val devices = api.getDevices(token).results
             .filterNot { it.label in UbidotsPropertyConfig.IGNORED_DEVICE_LABELS }
@@ -77,5 +106,28 @@ class RoomRepositoryImpl(
         val variables = api.getDeviceVariables(token, device.id).results
         val reading = RawSensorReading.fromVariables(variables)
         return RoomMapper.toRoomWithPropertyInfo(device, reading)
+    }
+
+    private suspend fun fetchRoomIntrusionEvents(
+        device: UbidotsDeviceDto,
+        startMs: Long,
+        endMs: Long
+    ): List<IntrusionEvent> {
+        val variables = api.getDeviceVariables(token, device.id).results
+        val intrusionVariable = variables.find { it.label == UbidotsVariables.INTRUSION_DETECTED }
+            ?: return emptyList()
+
+        val values = api.getVariableValues(
+            token = token,
+            variableId = intrusionVariable.id,
+            startMs = startMs,
+            endMs = endMs
+        ).results
+
+        return IntrusionHistoryMapper.groupIntoEvents(
+            roomId = device.label,
+            roomName = device.name,
+            rawValues = values
+        )
     }
 }

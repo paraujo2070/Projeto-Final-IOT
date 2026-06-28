@@ -56,3 +56,17 @@ data class UbidotsContextDto(
     @SerialName("source_timestamp") val sourceTimestamp: String? = null,
     @SerialName("janela_amostragem_segundos") val sampleWindowSeconds: Int? = null
 )
+
+@Serializable
+data class UbidotsValueListResponse(
+    val count: Boolean = false,
+    val next: String? = null,
+    val previous: String? = null,
+    val results: List<UbidotsValueDto> = emptyList()
+)
+
+@Serializable
+data class UbidotsValueDto(
+    val value: Double? = null,
+    val timestamp: Long? = null
+)

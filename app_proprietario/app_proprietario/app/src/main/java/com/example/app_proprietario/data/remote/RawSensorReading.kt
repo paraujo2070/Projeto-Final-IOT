@@ -17,7 +17,10 @@ data class RawSensorReading(
                 variables.find { it.label == label }?.lastValue?.value?.toFloat() ?: 0f
 
             val lastActivity = variables.mapNotNull { it.lastActivity }.maxOrNull()
-            val context = variables.firstNotNullOfOrNull { it.lastValue?.context }
+            val context = variables
+                .find { it.label == UbidotsVariables.INTRUSION_DETECTED }
+                ?.lastValue?.context
+                ?: variables.firstNotNullOfOrNull { it.lastValue?.context }
 
             return RawSensorReading(
                 humidityPct = valueOf(UbidotsVariables.HUMIDITY),

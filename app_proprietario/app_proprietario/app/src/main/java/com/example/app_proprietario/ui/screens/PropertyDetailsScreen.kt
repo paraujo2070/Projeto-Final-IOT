@@ -19,8 +19,8 @@ import com.example.app_proprietario.ui.components.PropertyDetails.PropertyDetail
 import com.example.app_proprietario.ui.components.PropertyDetails.PropertyStatusBanner
 import com.example.app_proprietario.ui.components.PropertyDetails.RoomCard
 import com.example.app_proprietario.ui.components.SyncFooter
-import com.example.app_proprietario.ui.viewmodel.PropertyDetailsUiState
-import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyDetailsUiState
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyDetailsViewModel
 
 @Composable
 fun PropertyDetailsScreen(

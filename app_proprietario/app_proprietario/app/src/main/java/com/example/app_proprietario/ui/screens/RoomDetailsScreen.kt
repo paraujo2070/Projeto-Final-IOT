@@ -23,10 +23,10 @@ import com.example.app_proprietario.ui.components.RoomDetails.MetricCard
 import com.example.app_proprietario.ui.components.RoomDetails.RoomDetailsTopBar
 import com.example.app_proprietario.ui.components.RoomDetails.RoomStatusBanner
 import com.example.app_proprietario.ui.components.SyncFooter
+import com.example.app_proprietario.ui.screens.viewmodel.RoomDetailsUiState
+import com.example.app_proprietario.ui.screens.viewmodel.RoomDetailsViewModel
 import com.example.app_proprietario.ui.theme.MoldColor
 import com.example.app_proprietario.ui.theme.TextSecondary
-import com.example.app_proprietario.ui.viewmodel.RoomDetailsUiState
-import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
 
 private const val HIGH_HUMIDITY_THRESHOLD = 70
 private const val LOW_HUMIDITY_THRESHOLD = 30

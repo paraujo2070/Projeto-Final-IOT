@@ -8,9 +8,9 @@ import com.example.app_proprietario.domain.usecase.GetIntrusionHistoryUseCase
 import com.example.app_proprietario.domain.usecase.GetPropertyDetailsUseCase
 import com.example.app_proprietario.domain.usecase.GetRoomDetailsUseCase
 import com.example.app_proprietario.ui.screens.viewmodel.IntrusionHistoryViewModel
-import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
-import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
-import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyDetailsViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyListViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.RoomDetailsViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 

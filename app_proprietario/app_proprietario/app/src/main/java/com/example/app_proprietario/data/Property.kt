@@ -4,5 +4,6 @@ data class Property(
     val id: String,
     val name: String,
     val rooms: List<Room>,
-    val lastSync: String = "há 4 min"
+    val lastSync: String = "há 4 min",
+    val hadIntrusionLast24h: Boolean = false
 )

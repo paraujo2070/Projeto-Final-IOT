@@ -12,10 +12,10 @@ import com.example.app_proprietario.ui.screens.PropertyDetailsScreen
 import com.example.app_proprietario.ui.screens.PropertyListScreen
 import com.example.app_proprietario.ui.screens.RoomDetailsScreen
 import com.example.app_proprietario.ui.screens.viewmodel.IntrusionHistoryViewModel
-import com.example.app_proprietario.ui.viewmodel.PropertyDetailsUiState
-import com.example.app_proprietario.ui.viewmodel.PropertyDetailsViewModel
-import com.example.app_proprietario.ui.viewmodel.PropertyListViewModel
-import com.example.app_proprietario.ui.viewmodel.RoomDetailsViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyDetailsUiState
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyDetailsViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.PropertyListViewModel
+import com.example.app_proprietario.ui.screens.viewmodel.RoomDetailsViewModel
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -33,7 +33,9 @@ fun MonitorNavGraph() {
             PropertyListScreen(
                 viewModel = viewModel,
                 onPropertyClick = { property ->
-                    navController.navigate(Routes.propertyDetails(property.id))
+                    navController.navigate(Routes.propertyDetails(property.id)) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -46,7 +48,10 @@ fun MonitorNavGraph() {
         ) { backStackEntry ->
             val rawPropertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
             val propertyId = Routes.decode(rawPropertyId)
-            val viewModel: PropertyDetailsViewModel = koinViewModel { parametersOf(propertyId) }
+
+            val viewModel: PropertyDetailsViewModel = koinViewModel(
+                key = "property_details_$propertyId"
+            ) { parametersOf(propertyId) }
 
             PropertyDetailsScreen(
                 viewModel = viewModel,
@@ -54,10 +59,14 @@ fun MonitorNavGraph() {
                 onRoomClick = { room ->
                     val propertyName = (viewModel.uiState.value as? PropertyDetailsUiState.Success)
                         ?.property?.name ?: ""
-                    navController.navigate(Routes.roomDetails(propertyId, propertyName, room.id))
+                    navController.navigate(Routes.roomDetails(propertyId, propertyName, room.id)) {
+                        launchSingleTop = true
+                    }
                 },
                 onIntrusionHistoryClick = {
-                    navController.navigate(Routes.intrusionHistory(propertyId))
+                    navController.navigate(Routes.intrusionHistory(propertyId)) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -76,7 +85,10 @@ fun MonitorNavGraph() {
             val propertyName = Routes.decode(rawPropertyName)
             val rawRoomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
             val roomId = Routes.decode(rawRoomId)
-            val viewModel: RoomDetailsViewModel = koinViewModel {
+
+            val viewModel: RoomDetailsViewModel = koinViewModel(
+                key = "room_details_${propertyId}_$roomId"
+            ) {
                 parametersOf(propertyId, propertyName, roomId)
             }
 
@@ -94,7 +106,10 @@ fun MonitorNavGraph() {
         ) { backStackEntry ->
             val rawPropertyId = backStackEntry.arguments?.getString("propertyId") ?: return@composable
             val propertyId = Routes.decode(rawPropertyId)
-            val viewModel: IntrusionHistoryViewModel = koinViewModel { parametersOf(propertyId) }
+
+            val viewModel: IntrusionHistoryViewModel = koinViewModel(
+                key = "intrusion_history_$propertyId"
+            ) { parametersOf(propertyId) }
 
             IntrusionHistoryScreen(
                 viewModel = viewModel,

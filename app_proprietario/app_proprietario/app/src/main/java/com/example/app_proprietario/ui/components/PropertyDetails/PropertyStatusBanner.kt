@@ -23,13 +23,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.app_proprietario.data.IntrusionStatus
 import com.example.app_proprietario.data.Property
 
 @Composable
 fun PropertyStatusBanner(property: Property, onClick: () -> Unit) {
-    val intrusionDetected = property.rooms.any { it.intrusionStatus == IntrusionStatus.INTRUSION_DETECTED }
-
+    val intrusionDetected = property.hadIntrusionLast24h
     Card(
         modifier = Modifier
             .fillMaxWidth()
